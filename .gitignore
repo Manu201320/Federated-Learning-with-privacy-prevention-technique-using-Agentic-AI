@@ -1,13 +1,12 @@
-# Ignore virtual environment
+# Virtual environment
 .venv/
 
 # Python cache
 __pycache__/
 *.pyc
 
-# Model files (optional, large files)
-*.pt
+# Large datasets
+data/
 
-# OS files
-.DS_Store
-Thumbs.db
+# Env files
+.env
