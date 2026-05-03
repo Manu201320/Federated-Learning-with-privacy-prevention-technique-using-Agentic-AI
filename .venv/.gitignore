@@ -1,8 +1,0 @@
-venv/
-.venv/
-venv311/
-__pycache__/
-*.pyc
-*.pyd
-*.pt
-*.csv
