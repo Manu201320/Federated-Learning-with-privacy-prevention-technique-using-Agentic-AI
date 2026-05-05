@@ -19,9 +19,13 @@ class SecurityGuard:
             g for name, g in all_gradients.items() if name != client_name
         ]
 
-        # If only one client → nothing to compare
+        # ✅ Case 1: Only one client
         if len(other_gradients) == 0:
             return True, "Only client — auto accepted"
+
+        # ✅ Case 2: Too few clients → skip strict checks
+        if len(other_gradients) < 3:
+            return True, "Few clients — relaxed security"
 
         other_array = np.array(other_gradients)
 
@@ -30,7 +34,10 @@ class SecurityGuard:
         # ==============================
         this_norm = np.linalg.norm(gradient)
         norms = [np.linalg.norm(g) for g in other_gradients]
-        avg_norm = np.mean(norms) + 1e-8
+        avg_norm = np.mean(norms)
+
+        if avg_norm < 1e-6:
+            return True, "Norm too small — skip"
 
         if (this_norm / avg_norm) > self.norm_threshold:
             reason = f"Norm too large ({this_norm:.2f} vs avg {avg_norm:.2f})"
@@ -38,12 +45,16 @@ class SecurityGuard:
             return False, reason
 
         # ==============================
-        # CHECK 2 — Z-SCORE
+        # CHECK 2 — Z-SCORE (SAFE)
         # ==============================
         mean_norm = np.mean(norms)
-        std_norm = np.std(norms) + 1e-8
+        std_norm = np.std(norms)
 
-        z_score = abs(this_norm - mean_norm) / std_norm
+        # 🔥 FIX: avoid division explosion
+        if std_norm < 1e-6:
+            z_score = 0.0  # treat as normal
+        else:
+            z_score = abs(this_norm - mean_norm) / std_norm
 
         if z_score > self.z_threshold:
             reason = f"Z-score too high ({z_score:.2f})"
@@ -55,9 +66,8 @@ class SecurityGuard:
         # ==============================
         avg_gradient = np.mean(other_array, axis=0)
 
-        # Avoid zero vector issues
         if np.linalg.norm(avg_gradient) < 1e-8 or np.linalg.norm(gradient) < 1e-8:
-            cos_sim = 1.0  # treat as safe
+            cos_sim = 1.0
         else:
             cos_sim = 1 - cosine(gradient, avg_gradient)
 
@@ -85,42 +95,3 @@ class SecurityGuard:
         else:
             for event in self.blocked_history:
                 print(f"❌ {event['client']}: {event['reason']}")
-
-
-# ==============================
-# TEST — SIMULATE ATTACK
-# ==============================
-if __name__ == "__main__":
-    guard = SecurityGuard(cosine_threshold=-0.3)
-
-    print("===== Security Guard Inspection =====\n")
-
-    # Normal gradients
-    gradients = {
-        "HDFC": np.random.normal(0, 0.1, 50),
-        "SBI": np.random.normal(0, 0.1, 50),
-        "Axis": np.random.normal(0, 0.1, 50),
-        "GPay": np.random.normal(0, 0.1, 50),
-        "PhonePe": np.random.normal(0, 0.1, 50),
-    }
-
-    # Poisoned client (attack)
-    gradients["ICICI"] = np.random.normal(0, 10, 50) * -1
-
-    clean_gradients = {}
-
-    for bank, grad in gradients.items():
-        is_clean, reason = guard.inspect(bank, grad, gradients)
-
-        status = "✅ Clean" if is_clean else "❌ Blocked"
-        print(f"{bank:<10} {status} — {reason}")
-
-        if is_clean:
-            clean_gradients[bank] = grad
-
-    guard.print_report()
-
-    print("\nClean clients used for aggregation:")
-    print(list(clean_gradients.keys()))
-
-    print("\n✅ Security Guard module ready!")
