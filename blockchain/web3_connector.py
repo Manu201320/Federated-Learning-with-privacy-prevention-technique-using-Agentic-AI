@@ -1,30 +1,40 @@
-from web3 import Web3
 import json
 import hashlib
 import numpy as np
 
 # ==============================
-# CONNECT TO LOCAL BLOCKCHAIN
+# SAFE BLOCKCHAIN INIT
 # ==============================
-w3 = Web3(Web3.HTTPProvider("http://127.0.0.1:8545"))
+BLOCKCHAIN_ENABLED = False
 
-print("Connected to blockchain:", w3.is_connected())
-print("Accounts available:", len(w3.eth.accounts))
+try:
+    from web3 import Web3
 
-# ✅ YOUR DEPLOYED CONTRACT ADDRESS
-CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+    w3 = Web3(Web3.HTTPProvider("http://127.0.0.1:8545"))
 
-# Load ABI
-with open("blockchain/artifacts/contracts/AuditTrail.sol/AuditTrail.json") as f:
-    contract_json = json.load(f)
-    ABI = contract_json["abi"]
+    if w3.is_connected():
+        print("✅ Connected to blockchain")
 
-contract = w3.eth.contract(address=CONTRACT_ADDRESS, abi=ABI)
-account = w3.eth.accounts[0]
+        CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+
+        with open("blockchain/artifacts/contracts/AuditTrail.sol/AuditTrail.json") as f:
+            contract_json = json.load(f)
+            ABI = contract_json["abi"]
+
+        contract = w3.eth.contract(address=CONTRACT_ADDRESS, abi=ABI)
+        account = w3.eth.accounts[0]
+
+        BLOCKCHAIN_ENABLED = True
+    else:
+        print("⚠️ Blockchain not running")
+
+except Exception as e:
+    print("⚠️ Blockchain disabled:", e)
+    BLOCKCHAIN_ENABLED = False
 
 
 # ==============================
-# HELPER — HASH MODEL WEIGHTS
+# HASH MODEL
 # ==============================
 def hash_model(weights_list):
     all_bytes = b""
@@ -34,16 +44,21 @@ def hash_model(weights_list):
 
 
 # ==============================
-# LOG ROUND (FLEXIBLE VERSION)
+# LOG ROUND (SAFE)
 # ==============================
 def log_round(round_number, banks_selected, model_data,
               anomaly_detected=False, anomaly_bank=""):
 
+    # 🔒 SAFE FALLBACK
+    if not BLOCKCHAIN_ENABLED:
+        print(f"⚠️ Blockchain disabled — Round {round_number} not logged")
+        return "mock_hash"
+
     # 🔥 HANDLE BOTH CASES
     if isinstance(model_data, str):
-        model_hash = model_data  # already hash/string
+        model_hash = model_data
     else:
-        model_hash = hash_model(model_data)  # compute hash
+        model_hash = hash_model(model_data)
 
     tx = contract.functions.logRound(
         int(round_number),
@@ -66,6 +81,10 @@ def log_round(round_number, banks_selected, model_data,
 # UPDATE TRUST SCORE
 # ==============================
 def update_trust_score(bank_name, score_float):
+    if not BLOCKCHAIN_ENABLED:
+        print(f"⚠️ Blockchain disabled — Trust update skipped ({bank_name})")
+        return
+
     score_int = int(score_float * 100)
 
     tx = contract.functions.updateTrustScore(
@@ -82,6 +101,10 @@ def update_trust_score(bank_name, score_float):
 # READ AUDIT LOG
 # ==============================
 def get_audit_log():
+    if not BLOCKCHAIN_ENABLED:
+        print("⚠️ Blockchain disabled — No logs available")
+        return
+
     count = contract.functions.getRoundsCount().call()
 
     print(f"\n===== Blockchain Audit Log ({count} rounds) =====\n")
@@ -105,10 +128,7 @@ if __name__ == "__main__":
 
     fake_weights = [np.random.normal(0, 0.1, 50) for _ in range(3)]
 
-    # Works with weights
     log_round(1, ["HDFC", "SBI"], fake_weights)
-
-    # Works with string (your server case)
     log_round(2, ["Axis", "GPay"], "model_hash_placeholder")
 
     update_trust_score("HDFC", 0.88)

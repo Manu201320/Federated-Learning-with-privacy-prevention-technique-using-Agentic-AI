@@ -9,7 +9,7 @@ from opacus import PrivacyEngine
 
 from models.gnn_model import GNNModel
 from privacy.pqc import PQCEncryption
-from privacy.zkp import generate_proof   # ✅ NEW
+from privacy.zkp import generate_proof
 
 print("🔥 CLIENT FILE STARTED")
 
@@ -22,7 +22,7 @@ def load_data(bank_id):
 
     df = pd.read_csv(f"data/bank{bank_id}.csv")
 
-# 🔥 LIMIT DATA (VERY IMPORTANT)
+    # 🔥 LIMIT DATA
     df = df.sample(n=5000, random_state=42)
 
     if "label" not in df.columns:
@@ -86,30 +86,39 @@ class FraudClient(fl.client.NumPyClient):
             max_grad_norm=1.0
         )
 
+        # 🔥 TRAIN
         for i, (x, y) in enumerate(loader):
-            if i > 50:   # limit steps
-              break
+            if i > 50:
+                break
 
             optimizer.zero_grad()
             loss = loss_fn(self.model(x), y)
             loss.backward()
             optimizer.step()
+
+        # 🔐 Privacy
         epsilon = privacy_engine.get_epsilon(delta=1e-5)
         print(f"🔐 Privacy ε: {epsilon:.2f}")
 
-        # Flatten params
+        # 🔥 CALCULATE ACCURACY HERE (IMPORTANT FIX)
+        self.model.eval()
+        with torch.no_grad():
+            output = self.model(self.x)
+            preds = torch.argmax(output, dim=1)
+            acc = (preds == self.y).float().mean().item()
+
+        print(f"📈 Training Accuracy: {acc:.4f}")
+
+        # 🔐 Flatten params
         params = self.get_parameters(config)
         flat = np.concatenate([p.flatten() for p in params])
 
-        # PQC (simulation)
+        # 🔐 PQC
         self.pqc.encrypt(flat, self.public_key)
         print("🔐 Gradient encrypted (PQC)")
 
-        # ✅ CLEAN ZKP (FIXED)
+        # 🔐 ZKP
         proof = generate_proof(flat)
-
-         # 🔥 COMPRESS VALUES (IMPORTANT)
-        
         print("🔐 ZKP proof generated")
 
         grad_norm = float(np.linalg.norm(flat))
@@ -117,7 +126,8 @@ class FraudClient(fl.client.NumPyClient):
         return params, len(self.x), {
             "bank_id": int(self.bank_id),
             "grad_norm": grad_norm,
-            **proof   # injects commitment, challenge, response, public_key
+            "accuracy": acc,  # ✅ CRITICAL FIX
+            **proof
         }
 
     def evaluate(self, parameters, config):
