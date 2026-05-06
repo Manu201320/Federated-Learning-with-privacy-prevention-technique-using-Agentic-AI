@@ -32,8 +32,9 @@ class FraudDB:
         _, idx = self.index.search(vec, 1)
         return self.data[idx[0][0]]
 
+
 # -----------------------------
-# EXPLAINER
+# EXPLAINER CLASS
 # -----------------------------
 class LLMExplainer:
     def __init__(self):
@@ -61,15 +62,24 @@ Block transaction and verify customer.
 
 
 # -----------------------------
+# ✅ GLOBAL INSTANCE + FUNCTION (IMPORTANT FIX)
+# -----------------------------
+explainer = LLMExplainer()
+
+def explain(description: str):
+    """
+    Wrapper for FastAPI
+    """
+    transaction = {
+        "type": "UPI",
+        "amount": 50000,
+        "pattern": description
+    }
+    return explainer.explain(transaction)
+
+
+# -----------------------------
 # TEST
 # -----------------------------
 if __name__ == "__main__":
-    explainer = LLMExplainer()
-
-    tx = {
-        "type": "UPI",
-        "amount": 48000,
-        "pattern": "Large transfer at 2am to new account"
-    }
-
-    print(explainer.explain(tx))
+    print(explain("Large transfer at 2am to new account"))
