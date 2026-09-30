@@ -37,3 +37,22 @@ The system further integrates privacy-preserving and intelligent components to i
 ├── saved_models/    # Saved trained models
 ├── .gitignore
 └── clean_output.txt
+## 🏗️ System Architecture
+
+The system integrates federated learning, vertical federated learning, privacy and security mechanisms, agentic AI, blockchain, and LLM-based explainability.
+
+![Federated Fraud Detection System Architecture](architecture.png)
+
+The architecture consists of six major modules:
+
+1. **Federated Learning Module** – Enables multiple banks to collaboratively train models while keeping local data within each organization.
+
+2. **Vertical Federated Learning Module** – Enables feature-level collaboration between different entities such as banks, UPI, and telecom providers without directly sharing raw data.
+
+3. **Privacy & Security Module** – Incorporates Differential Privacy, Zero-Knowledge Proofs, and Post-Quantum Cryptography components.
+
+4. **Agentic AI Module** – Includes agents for client selection, security monitoring, and privacy control.
+
+5. **Blockchain Module** – Provides a permissioned blockchain layer for maintaining training-round records, client scores, anomaly logs, incidents, and model updates.
+
+6. **Explainability Module** – Uses LLM and RAG components to generate human-readable explanations for fraud predictions.
